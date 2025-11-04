@@ -132,4 +132,8 @@ downloads/
 temp/
 logs/
 
+# Cookies
+cookies.txt
+tiktok_cookies.txt
+
 .DS_Store

@@ -17,21 +17,26 @@ class Config:
     
     DOWNLOADS_DIR = 'downloads'
     
+    TIKTOK_COOKIES_FILE = os.getenv('TIKTOK_COOKIES_FILE', 'tiktok_cookies.txt')
+
     SUPPORTED_PLATFORMS = {
         'youtube': {
             'name': '🔴 YouTube',
             'patterns': ['youtube.com', 'youtu.be', 'youtube.com/shorts'],
-            'emoji': '📺'
+            'emoji': '📺',
+            'supports_photos': False
         },
         'instagram': {
             'name': '📸 Instagram',
             'patterns': ['instagram.com', 'instagr.am'],
-            'emoji': '📱'
+            'emoji': '📱',
+            'supports_photos': True
         },
         'tiktok': {
             'name': '🎵 TikTok',
-            'patterns': ['tiktok.com', 'vm.tiktok.com'],
-            'emoji': '🎭'
+            'patterns': ['tiktok.com', 'www.tiktok.com', 'vm.tiktok.com'],
+            'emoji': '🎭',
+            'supports_photos': True
         }
     }
     

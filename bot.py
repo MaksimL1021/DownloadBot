@@ -4,8 +4,8 @@ import os
 import re
 import time
 from pathlib import Path
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from config import Config
 from youtube_downloader import MediaDownloader
 
@@ -24,34 +24,20 @@ class MediaTelegramBot:
         self.total_processed = 0
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        keyboard = [
-            [InlineKeyboardButton("📹 YouTube", url="https://youtube.com"),
-             InlineKeyboardButton(" Instagram", url="https://instagram.com")],
-            [InlineKeyboardButton("🎵 TikTok", url="https://tiktok.com"),
-             InlineKeyboardButton("❓ Помощь", callback_data="help")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        platforms_text = "\n".join([
-            f"{info['emoji']} {info['name']}" 
-            for info in Config.SUPPORTED_PLATFORMS.values()
-        ])
-        
         welcome_message = (
-            f"{Config.STATUS_EMOJIS['success']} *Добро пожаловать в универсальный видео\\-загрузчик\\!*\n\n"
-            f"🎯 *Поддерживаемые платформы:*\n"
-            f"{platforms_text}\n\n"
-            f"📝 *Как использовать:*\n"
-            f"1️⃣ Скопируйте ссылку на видео\n"
-            f"2️⃣ Отправьте её мне\n"
-            f"3️⃣ Получите видео\\-файл\n\n"
-            f"⚡ *Быстро • Надежно • Удобно*"
+            f"📋 *Инструкция по использованию:*\n\n"
+            f"1️⃣ Скопируйте ссылку на видео или фото\n"
+            f"2️⃣ Отправьте её мне в чат\n"
+            f"3️⃣ Получите файл для скачивания\n\n"
+            f" *Поддерживаемые платформы:*\n"
+            f" YouTube \\(видео\\)\n"
+            f" Instagram \\(видео, фото\\)\n"
+            f" TikTok \\(видео\\)\n\n"
         )
         
         await update.message.reply_text(
             welcome_message, 
-            parse_mode='MarkdownV2',
-            reply_markup=reply_markup
+            parse_mode='MarkdownV2'
         )
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -59,15 +45,16 @@ class MediaTelegramBot:
             f"{Config.STATUS_EMOJIS['warning']} *Помощь по использованию бота*\n\n"
             f"🎯 *Поддерживаемые форматы ссылок:*\n\n"
             f"📺 *YouTube:*\n"
-            f"• `youtube\\.com/watch\\?v\\=`\n"
-            f"• `youtu\\.be/`\n"
-            f"• `youtube\\.com/shorts/`\n\n"
+            f"• `youtube\\.com/watch\\?v\\=` \\(только видео\\)\n"
+            f"• `youtu\\.be/` \\(только видео\\)\n"
+            f"• `youtube\\.com/shorts/` \\(только видео\\)\n\n"
             f"📱 *Instagram:*\n"
-            f"• `instagram\\.com/p/` \\(посты\\)\n"
-            f"• `instagram\\.com/reel/` \\(reels\\)\n\n"
+            f"• `instagram\\.com/p/` \\(видео и фото\\)\n"
+            f"• `instagram\\.com/reel/` \\(видео\\)\n\n"
             f"🎭 *TikTok:*\n"
-            f"• `tiktok\\.com/@username/video/`\n"
-            f"• `vm\\.tiktok\\.com/`\n\n"
+            f"• `tiktok\\.com/@username/video/` \\(видео\\)\n"
+            f"• `tiktok\\.com/@username/photo/` \\(фото\\)\n"
+            f"• `vm\\.tiktok\\.com/` \\(видео\\)\n\n"
             f"⚠️ *Ограничения:*\n"
             f"• Максимальный размер: {Config.MAX_FILE_SIZE_MB} МБ\n"
             f"• Приватные аккаунты не поддерживаются\n\n"
@@ -80,7 +67,7 @@ class MediaTelegramBot:
 
     def is_supported_url(self, url: str) -> bool:
         url_lower = url.lower()
-        
+            
         for platform_info in Config.SUPPORTED_PLATFORMS.values():
             for pattern in platform_info['patterns']:
                 if pattern in url_lower:
@@ -91,42 +78,37 @@ class MediaTelegramBot:
         message_text = update.message.text.strip()
 
         if self.is_supported_url(message_text):
-            await self.download_video(update, context, message_text)
+            await self.download_media(update, context, message_text)
         else:
-            keyboard = [
-                [InlineKeyboardButton("📺 Пример YouTube", 
-                                    url="https://youtube.com/watch?v=dQw4w9WgXcQ")],
-                [InlineKeyboardButton("📱 Пример Instagram", 
-                                    url="https://instagram.com/p/example")],
-                [InlineKeyboardButton("🎭 Пример TikTok", 
-                                    url="https://tiktok.com/@example")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
             await update.message.reply_text(
                 f"{Config.STATUS_EMOJIS['error']} *Неподдерживаемая ссылка*\n\n"
                 f"Отправьте ссылку на видео с одной из поддерживаемых платформ:\n\n"
                 f"📺 YouTube\n📱 Instagram\n🎭 TikTok\n\n"
-                f"Или нажмите /help для подробной справки\\.",
-                parse_mode='MarkdownV2',
-                reply_markup=reply_markup
+                f"Нажмите /help для подробной справки\\.",
+                parse_mode='MarkdownV2'
             )
 
-    async def download_video(self, update: Update, context: ContextTypes.DEFAULT_TYPE, url: str):
+    async def download_media(self, update: Update, context: ContextTypes.DEFAULT_TYPE, url: str):
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         
         platform_info = self.downloader.get_platform_info(url)
         
+        # Определяем тип контента
+        is_photo = '/photo/' in url.lower()
+        content_type = "фото" if is_photo else "видео"
+        content_emoji = "📸" if is_photo else "📹"
+        
         async with self.download_semaphore:
             self.active_downloads += 1
-            logger.info(f"Начинаю загрузку для пользователя {user_id}. Активных загрузок: {self.active_downloads}")
+            logger.info(f"Начинаю загрузку {content_type} для пользователя {user_id}. Активных загрузок: {self.active_downloads}")
             
             status_message = await update.message.reply_text(
                 f"{Config.STATUS_EMOJIS['processing']} *Обработка запроса*\n\n"
                 f"{platform_info['emoji']} Платформа: {platform_info['name']}\n"
+                f"{content_emoji} Тип: {content_type}\n"
                 f"👥 В очереди: {self.active_downloads}\n"
-                f"🔄 Получение информации о видео\\.\\.\\.",
+                f"🔄 Получение информации\\.\\.\\.",
                 parse_mode='MarkdownV2'
             )
             
@@ -135,35 +117,35 @@ class MediaTelegramBot:
                 await status_message.edit_text(
                     f"{Config.STATUS_EMOJIS['processing']} *Получение информации*\n\n"
                     f"{platform_info['emoji']} {platform_info['name']}\n"
-                    f"🔍 Анализ видео\\.\\.\\.",
+                    f"{content_emoji} Анализ {content_type}\\.\\.\\.",
                     parse_mode='MarkdownV2'
                 )
                 
-                video_info = await self.downloader.get_video_info(url)
+                media_info = await self.downloader.get_media_info(url)
 
-                if not video_info:
+                if not media_info:
                     await status_message.edit_text(
                         f"{Config.STATUS_EMOJIS['error']} *Ошибка получения информации*\n\n"
-                        f"Не удалось получить данные о видео\\.\n"
+                        f"Не удалось получить данные о {content_type}\\.\n"
                         f"Возможные причины:\n"
                         f"• Приватный аккаунт\n"
-                        f"• Удаленное видео\n"
+                        f"• Удаленный контент\n"
                         f"• Проблемы с сетью",
                         parse_mode='MarkdownV2'
                     )
                     return
 
-                title = video_info.get('title', 'Unknown')
-                duration = video_info.get('duration', 0) or 0
-                uploader = video_info.get('uploader', 'Unknown')
-                platform = video_info.get('platform', 'unknown')
+                title = media_info.get('title', 'Unknown')
+                duration = media_info.get('duration', 0) or 0
+                uploader = media_info.get('uploader', 'Unknown')
+                platform = media_info.get('platform', 'unknown')
 
                 if duration > 3600:
                     await status_message.edit_text(
-                        f"{Config.STATUS_EMOJIS['warning']} *Видео слишком длинное*\n\n"
+                        f"{Config.STATUS_EMOJIS['warning']} *{content_type.capitalize()} слишком длинное*\n\n"
                         f"🕐 Длительность: {int(duration)//60} мин\\.\n"
                         f"⚠️ Максимум: 60 мин\\.\n\n"
-                        f"Попробуйте видео покороче\\.",
+                        f"Попробуйте {content_type} покороче\\.",
                         parse_mode='MarkdownV2'
                     )
                     return
@@ -179,16 +161,29 @@ class MediaTelegramBot:
                     parse_mode='MarkdownV2'
                 )
 
-                file_path = await self.downloader.download_video(url)
+                file_path = await self.downloader.download_media(url)
+
+                # Специальная обработка TikTok фото
+                if file_path == "TIKTOK_PHOTO_NOT_SUPPORTED":
+                    await status_message.edit_text(
+                        f"{Config.STATUS_EMOJIS['error']} *TikTok фото не поддерживается*\n\n"
+                        f"К сожалению, TikTok фото пока не поддерживается\\.\n"
+                        f"Работает только с TikTok видео\\.\n\n"
+                        f"Попробуйте:\n"
+                        f"• TikTok видео вместо фото\n"
+                        f"• Другие платформы \\(YouTube, Instagram\\)",
+                        parse_mode='MarkdownV2'
+                    )
+                    return
 
                 if not file_path or not os.path.exists(file_path):
                     await status_message.edit_text(
                         f"{Config.STATUS_EMOJIS['error']} *Ошибка загрузки*\n\n"
-                        f"Не удалось скачать видео\\.\n"
+                        f"Не удалось скачать {content_type}\\.\n"
                         f"Попробуйте:\n"
                         f"• Другую ссылку\n"
                         f"• Повторить позже\n"
-                        f"• Проверить доступность видео",
+                        f"• Проверить доступность контента",
                         parse_mode='MarkdownV2'
                     )
                     return
@@ -199,37 +194,46 @@ class MediaTelegramBot:
                         f"{Config.STATUS_EMOJIS['warning']} *Файл слишком большой*\n\n"
                         f"📦 Размер: {file_size//1024//1024} МБ\n"
                         f"⚠️ Лимит: {Config.MAX_FILE_SIZE_MB} МБ\n\n"
-                        f"Попробуйте видео поменьше\\.",
+                        f"Попробуйте {content_type} поменьше\\.",
                         parse_mode='MarkdownV2'
                     )
                     return
 
                 await status_message.edit_text(
-                    f"{Config.STATUS_EMOJIS['uploading']} *Отправка видео*\n\n"
+                    f"{Config.STATUS_EMOJIS['uploading']} *Отправка {content_type}*\n\n"
                     f"📤 Загружаю в Telegram\\.\\.\\.",
                     parse_mode='MarkdownV2'
                 )
 
-                with open(file_path, 'rb') as video_file:
-                    await context.bot.send_video(
-                        chat_id=chat_id,
-                        video=video_file,
-                        caption=(
-                            f"{Config.STATUS_EMOJIS['success']} *Видео готово\\!*\n\n"
-                            f"{platform_info['emoji']} {title[:50]}\n"
-                            f"👤 {uploader}\n\n"
-                            f"📤 *Можете пересылать друзьям\\!*"
-                        ),
-                        parse_mode='MarkdownV2',
-                        supports_streaming=True
-                    )
+                with open(file_path, 'rb') as media_file:
+                    if is_photo:
+                        await context.bot.send_photo(
+                            chat_id=chat_id,
+                            photo=media_file,
+                            caption=(
+                                f"{platform_info['emoji']} {title[:50]}\n"
+                                f"👤 {uploader}"
+                            ),
+                            parse_mode='MarkdownV2'
+                        )
+                    else:
+                        await context.bot.send_video(
+                            chat_id=chat_id,
+                            video=media_file,
+                            caption=(
+                                f"{platform_info['emoji']} {title[:50]}\n"
+                                f"👤 {uploader}"
+                            ),
+                            parse_mode='MarkdownV2',
+                            supports_streaming=True
+                        )
 
                 await status_message.delete()
                 self.total_processed += 1
-                logger.info(f"Видео успешно отправлено пользователю {user_id}. Всего обработано: {self.total_processed}")
+                logger.info(f"Медиа успешно отправлено пользователю {user_id}. Всего обработано: {self.total_processed}")
 
             except Exception as e:
-                logger.error(f"Ошибка при загрузке видео для пользователя {user_id}: {e}")
+                logger.error(f"Ошибка при загрузке медиа для пользователя {user_id}: {e}")
 
                 await status_message.edit_text(
                     f"{Config.STATUS_EMOJIS['error']} *Произошла ошибка*\n\n"
@@ -257,8 +261,17 @@ class MediaTelegramBot:
                         "❌ Превышено время ожидания.\n"
                         "Попробуйте позже или выберите видео поменьше."
                     )
+                elif "Video not available, status code 0" in str(e):
+                    error_message = (
+                        "❌ Видео недоступно для скачивания.\n"
+                        "TikTok блокирует автоматические запросы.\n"
+                        "Попробуйте:\n"
+                        "• Другое видео\n"
+                        "• Повторить через несколько минут\n"
+                        "• Проверить, что видео публичное"
+                    )
                 else:
-                    error_message += "Попробуйте позже или с другой ссылкой."
+                    error_message = "❌ Произошла ошибка при обработке видео.\nПопробуйте позже или с другой ссылкой."
 
                 await status_message.edit_text(error_message)
             
@@ -303,13 +316,6 @@ class MediaTelegramBot:
         
         await update.message.reply_text(stats_message, parse_mode='MarkdownV2')
 
-    async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        await query.answer()
-        
-        if query.data == "help":
-            await self.help_command(update, context)
-
     async def cleanup_task(self):
         while True:
             try:
@@ -331,7 +337,6 @@ def main():
         application.add_handler(CommandHandler("start", bot.start_command))
         application.add_handler(CommandHandler("help", bot.help_command))
         application.add_handler(CommandHandler("stats", bot.stats_command))
-        application.add_handler(CallbackQueryHandler(bot.button_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_message))
 
         application.add_error_handler(bot.error_handler)
