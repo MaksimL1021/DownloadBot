@@ -16,6 +16,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def escape_markdown_v2(text: str) -> str:
+    if not text:
+        return ""
+    
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    
+    return text
+
+
 class MediaTelegramBot:
     def __init__(self):
         self.downloader = MediaDownloader()
@@ -152,10 +164,14 @@ class MediaTelegramBot:
 
                 duration_str = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else "неизвестно"
                 
+                # Экранируем специальные символы для MarkdownV2
+                safe_title = escape_markdown_v2(title[:40])
+                safe_uploader = escape_markdown_v2(uploader[:30])
+                
                 await status_message.edit_text(
                     f"{Config.STATUS_EMOJIS['downloading']} *Начинаю загрузку*\n\n"
-                    f"{platform_info['emoji']} *{title[:40]}\\.\\.\\.*\n"
-                    f"👤 Автор: {uploader[:30]}\n"
+                    f"{platform_info['emoji']} *{safe_title}\\.\\.\\.*\n"
+                    f"👤 Автор: {safe_uploader}\n"
                     f"⏱️ Длительность: {duration_str}\n\n"
                     f"📥 Скачивание\\.\\.\\.",
                     parse_mode='MarkdownV2'
@@ -206,13 +222,17 @@ class MediaTelegramBot:
                 )
 
                 with open(file_path, 'rb') as media_file:
+                    # Безопасные строки для caption  
+                    safe_title_caption = escape_markdown_v2(title[:50])
+                    safe_uploader_caption = escape_markdown_v2(uploader)
+                    
                     if is_photo:
                         await context.bot.send_photo(
                             chat_id=chat_id,
                             photo=media_file,
                             caption=(
-                                f"{platform_info['emoji']} {title[:50]}\n"
-                                f"👤 {uploader}"
+                                f"{platform_info['emoji']} {safe_title_caption}\n"
+                                f"👤 {safe_uploader_caption}"
                             ),
                             parse_mode='MarkdownV2'
                         )
@@ -221,8 +241,8 @@ class MediaTelegramBot:
                             chat_id=chat_id,
                             video=media_file,
                             caption=(
-                                f"{platform_info['emoji']} {title[:50]}\n"
-                                f"👤 {uploader}"
+                                f"{platform_info['emoji']} {safe_title_caption}\n"
+                                f"👤 {safe_uploader_caption}"
                             ),
                             parse_mode='MarkdownV2',
                             supports_streaming=True
